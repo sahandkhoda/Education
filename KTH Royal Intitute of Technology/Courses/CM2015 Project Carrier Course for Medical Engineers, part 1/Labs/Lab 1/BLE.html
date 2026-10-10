@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>HTML5 WebBLE Gateway for heart rate</title>
+<style type="text/css">
+    canvas { border: 1px solid black; }
+    textarea { resize: both; font-family: Consolas,Monaco,Lucida Console,Liberation Mono,DejaVu Sans Mono,Bitstream Vera Sans Mono,Courier New, monospace; }
+    div.bpm { display: inline; }
+    #bpmValue { padding-left: 10px; padding-right: 10px; font-weight: bold; }
+    #myProgramArea { background: grey; }
+    }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.48.4/codemirror.css">
+
+</head>
+<body onload="init();">
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.48.4/codemirror.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.48.4/mode/javascript/javascript.js"></script>
+
+<p>
+<div class="bpm">Heart Rate:</div>
+<div class="bpm" id="bpmValue">60</div>
+<div class="bpm">BPM</div>
+</p>
+
+<canvas id="myCanvas" width="600" height="341"></canvas>
+<p>
+<button onclick="start()">Start sensor</button>
+<button onclick="stop()">Stop sensor</button>
+<button onclick="initProgramming()">Enable Programming</button>
+</p>
+
+<div hidden id="myProgramArea">
+Init Function<br>
+<textarea id="funcInit" rows="6" cols="80">
+// These instructions are only executed once at the start
+m = 0;
+</textarea><br>
+Handle New Signal Value Function<br>
+<form><textarea id="funcHandleSignalValue" rows="10">
+// These instructions are executed for every new heart signal value
+// The new value is found the variable 'signal'
+
+setMean(m);  // Make the value for the red curve
+m = Math.round(signal * 0.5);
+
+// useful instructions:
+//now = runningTime()
+//setBPM(123);  // Set the BPM value
+//blink(1);     // turn the blink of the BPM value on
+//blink(0);     // turn the blink of the BPM value off
+
+</textarea></form><br>
+<button onclick="program()">Program sensor</button>
+</div>
+
+
+<script>
+                                         
+var canvas, ctx, val, requestId;
+
+var signal;
+var signalArray = [];
+var filterArray = [];
+
+var oldTime;
+
+var targetDevice;
+var charUARTRX;
+var myFunction;
+
+const BLE_UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const BLE_UART_RX_CHAR = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function initProgramming()
+{
+    document.getElementById('myProgramArea').hidden = false;
+    
+    editor1 = CodeMirror.fromTextArea(document.getElementById("funcHandleSignalValue"), {
+                                         lineNumbers: true,
+                                         mode: {name: "javascript", globalVars: true}
+                                         });
+    editor2 = CodeMirror.fromTextArea(document.getElementById("funcInit"), {
+                                      lineNumbers: true,
+                                      mode: {name: "javascript", globalVars: true}
+                                      });
+    editor2.setSize(null, 128);
+}
+
+function init()
+{
+    canvas = document.getElementById('myCanvas');
+    val = document.getElementById('bpmValue');
+    ctx = canvas.getContext('2d');
+    for (i=0; i < canvas.width/2; i++) {
+        signalArray.push(100);
+        filterArray.push(100);
+    }
+    oldTime = new Date();
+    console.log("init");
+}
+
+function startBluetooth()
+{
+    console.log('Requesting Bluetooth Device...');
+    navigator.bluetooth.requestDevice({filters: [                                                                                   {services: [BLE_UART_SERVICE]},
+                                          {namePrefix: 'BBC micro:bit '}]})
+    .then(device => {
+          console.log('Connecting to GATT Server...');
+          targetDevice = device;
+          return device.gatt.connect();
+    })
+    .then(server => {
+          console.log('Getting Service...');
+          return server.getPrimaryService(BLE_UART_SERVICE);
+    })
+    .then(service => {
+          console.log('Got service');
+          return service.getCharacteristic(BLE_UART_RX_CHAR);
+    })
+    .then(characteristic => {
+          console.log('Got char');
+          charUARTRX = characteristic;
+          return charUARTRX.startNotifications();
+    })
+    .then(_ => {
+          console.log('Notifications started');
+          charUARTRX.addEventListener('characteristicvaluechanged',
+                                            handleNotifications);
+    })
+    .catch(error =>{
+         console.log(error);
+    });
+}
+
+
+function animationLoop(timestamp)
+{
+    //console.log("animate");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.font = "12px Arial";
+    ctx.fillStyle = "#FF0000";
+    ctx.strokeStyle = "#000000";
+    
+    //var ctx = c.getContext("2d");
+    ctx.beginPath(0, canvas.height - signalArray[0]*canvas.height/1023);
+    for(i = 1; i < signalArray.length; i++){
+        ctx.lineTo(2*i, canvas.height - signalArray[i]*canvas.height/1023);
+    }
+    ctx.stroke();
+    
+    ctx.strokeStyle = "#FF0000";
+    ctx.beginPath(0, canvas.height - filterArray[0]*canvas.height/1023);
+    for (i = 1; i < filterArray.length; i++) {
+        ctx.lineTo(2*i, canvas.height - filterArray[i]*canvas.height/1023);
+    }
+    ctx.stroke();
+    
+    requestId = requestAnimationFrame(animationLoop);
+}
+
+function handleNotifications(event)
+{
+    var result = "";
+    for (i = 0; i < event.target.value.byteLength; i++) {
+        result += String.fromCharCode(event.target.value.getUint8(i));
+    }
+
+    console.log(result);
+    var values = result.split(' ');
+    
+    if (values[0] == "BPM") {
+        setBPM(parseInt(values[1]));
+        return;
+    }
+    
+    signal = parseInt(values[0]);
+    
+    signalArray.shift();
+    signalArray.push(signal);
+    
+    if (myFunction) {
+        eval(myFunction);
+        return;
+    }
+    
+    if (values.length >= 2) {
+        filterArray.shift();
+        filterArray.push(parseInt(values[1]));
+    }
+    
+    if (values.length >= 3) {
+        setBPM(parseInt(values[2]));
+    }
+
+    
+}
+
+
+function setBPM(bpm)
+{
+    val.textContent = bpm;
+}
+
+function setMean(mean)
+{
+    filterArray.shift();
+    filterArray.push(mean);
+}
+
+function runningTime()
+{
+    return Date.now()
+}
+
+function blink(onoff)
+{
+    if (onoff)
+        val.style.background = "#F55";
+    else
+        val.style.background = "#FFF";
+}
+
+
+function start()
+{
+    // Start the animation loop, targets 60 frames/s
+    eval(document.getElementById('funcInit').value);
+    startBluetooth();
+    requestId = requestAnimationFrame(animationLoop);
+}
+
+
+function stop()
+{
+    if (requestId) {
+        cancelAnimationFrame(requestId);
+    }
+    
+    if (charUARTRX) {
+        charUARTRX.stopNotifications()
+        .then(_ => {
+            console.log('Notifications stopped');
+            charUARTRX.removeEventListener('characteristicvaluechanged',
+                                           handleNotifications);
+            charUARTRX = null;
+            targetDevice.gatt.disconnect();
+        })
+        .catch(error => {
+            console.log('Argh! ' + error);
+        });
+    }
+}
+
+function program()
+{
+    editor1.save();
+    editor2.save();
+    myFunction = document.getElementById('funcHandleSignalValue').value;
+    eval(document.getElementById('funcInit').value);
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,455 @@
+---
+title: "Lecture 3 - Practicals"
+author: "Adam Darwich"
+date: "2025-09-02"
+output: html_document
+---
+
+## EXERCISE 1: LINEAR REGRESSION
+In this exercise we will work on a slightly modified version of a dataset on birth weights (reported in Dunn & Smyth 2007). I would also like you to share a companion paper on this by one of my favourite statisticians, none other than Dr Andrew Gelman. You will find the paper here:
+https://sites.stat.columbia.edu/gelman/research/unpublished/standardizing.pdf Links to an external site.
+
+In the data-file, BirthWeight_dat.csv Download BirthWeight_dat.csv, you will find four columns of data, BirthWeight: bodyweight at birth [lbs]; GestationalAge: gestational age at birth [weeks], BW_mat: maternal bodyweight [kg], T1DM: maternal type 1 diabetes mellitus diagnosis (1: yes, 0: no).
+
+A. Examine the data through data tables and visualisations.
+
+B. Develop a simple linear regression, interpret and discuss the model coefficients. How would you explain these effects?
+C. During the lecture series I talked about testing interaction effects on the most important main effects. Well, let's try this here.
+Refine the above regression model by adding an interaction effect between GestationalAge and T1DM.
+Reinterpret the coefficients. In words, describe the effect of the interaction. How does your interpretation of the main effects (that are included in the interaction) differ now?
+
+D. A remedy to the above interpretation challenge is to centre the independent variables that are included in the interaction term.
+Do this and reinterpret the output.
+
+E. Why would you want to standardise independent variables? Try this out and reinterpret the output.
+F. Under what situations would you want to log-transform the dependent variable? Independent variables? How would this affect your interpretation of the coefficients?
+
+```{r}
+## import the data
+birth_dat <- read.csv("BirthWeight_dat.csv")
+
+# A: examine data for example using summary(data), plots, pairs, etc.
+summary(birth_dat)
+pairs(birth_dat)
+hist(birth_dat$BirthWeight, xlab = "Birth Weight [lbs]")
+# note: the DV is approximately normal and continuous data
+
+# B: carry out a regression analysis
+# with the following model:
+m1_t1 <- lm(BirthWeight ~ GestationalAge + BW_mat + T1DM, data = birth_dat)
+summary(m1_t1)
+plot(m1_t1)
+
+# INTERPRETING COEFFICIENTS:
+# Intercept: -2.58
+# Birth weight at a gestational age of zero, maternal body weight of zero
+# and mother without type 1 diabetes mellitus.
+
+# Gestational Age - Beta=0.16
+# Is the change in birth weight if gestational age increases with one week,
+# keeping all other inputs constant. 
+
+# BW, mother - Beta=0.10
+# The change in birth weight if maternal BW differs by one KG, keeping all other
+# inputs constant.
+
+# T1DM - Beta=1.47
+# Change in birth weight if mother suffers from T1DM, keeping all other
+# inputs constant.
+
+# C: interaction effect
+# then, with the following model:
+m2_t1 <- lm(BirthWeight ~ GestationalAge*T1DM + BW_mat, data = birth_dat)
+summary(m2_t1)
+plot(m2_t1)
+
+# Interaction GestationalAge:T1DM, Beta=0.05
+# The effect of gestational age is increased by 0.05 if the mother suffers from
+# T1DM.
+# The main effects should now be interpreted as setting the other main effect in the 
+#  interaction to zero. 
+
+# D: CENTERING DATA
+# CENTERING: 
+# helps us to interpret main effects in the presence of interaction effects
+# We now can interpret the main effect as its effect when the other main effect is 
+# the average.
+
+# We simply center by deducting the mean from the data, so that:
+AgeCentred <- birth_dat$GestationalAge - mean(birth_dat$GestationalAge)
+
+birth_dat2 <- data.frame(birth_dat, AgeCentred)
+
+m3_t1 <- lm(BirthWeight ~ AgeCentred*T1DM + BW_mat, data = birth_dat2)
+summary(m3_t1)
+plot(m3_t1)
+
+# We could also center by any other reference value of our choice
+
+# E: STANDARDISATION
+# can be used to better help us compare Beta coefficients.
+# comparison of beta coefficients are subject to differences in scales between
+# predictors. 
+# One workaround is to standardise the independent variables, for example:
+# Age_std <- (Age - mean(Age))/(sd(Age))
+# Age_std <- (Age - mean(Age))(2*sd(Age))
+
+# We can now interpret all coefficients on roughly the same scale.
+# A benefit of scaling by 2*sd is that 1-unit change in the predictor leads to
+# a change from 1 sd below the mean to 1 sd above the mean. This maintains coherence
+# when we are working with binary effectors. 
+# The intercept is now the average DV with all IVs at their mean.
+
+GestationalAge_std <- (birth_dat$GestationalAge -
+                         mean(birth_dat$GestationalAge))/(2*sd(birth_dat$GestationalAge))
+BWmat_std <- (birth_dat$BW_mat - mean(birth_dat$BW_mat))/(2*sd(birth_dat$BW_mat))
+
+birth_dat3 <- data.frame(BirthWeight = birth_dat$BirthWeight, GestationalAge = GestationalAge_std,
+                         BW_mat = BWmat_std, T1DM = birth_dat$T1DM)
+
+m4_t1 <- lm(BirthWeight ~ GestationalAge*T1DM + BW_mat, data = birth_dat3)
+summary(m4_t1)
+plot(m4_t1)
+
+# Another alternative (in models without interactions), is to leave IVs as they are
+# and then rescale the beta coefficients by multiplying with 2*SDs. 
+# This will allow a rough comparison of coefficients. 
+
+# F: NONLINEAR TRANSFORMATIONS
+# NONLINEAR TRANSFORMATIONS IN CASE OF VIOLATING THE ASSUMPTION OF ADDITIVITY AND LINEARITY:
+# LOG-TRANSFORMATION OF Y: %-change in Y per 1-unit increase of X.
+# LOG-TRANSFORMATION OF X: Change in Y per % change in X.
+# LOG-Y, and LOGX: % change in Y per % change in X
+
+# Ref: Gelman 2007: https://sites.stat.columbia.edu/gelman/research/unpublished/standardizing.pdf
+
+```
+
+## EXERCISE 2A: SURVIVAL IN LEUKAEMIA - SURVIVAL ANALYSIS
+Import the data-file, Leukaemia_dat.csv Download Leukaemia_dat.csv. The data-file contains four columns: Time: Surival time [days]; WBC: white blood cell count, AG: genetic type (1 or 2), Status: 1: deceased. 
+
+Take a look at the data and propose an analysis.
+Develop a simple model and have a go at interpreting the model parameters. 
+
+```{r}
+# import data
+leuk_dat <- read.csv("Leukaemia_dat.csv")
+
+summary(leuk_dat)
+pairs(leuk_dat)
+hist(leuk_dat$Time, xlab = "Survival Time [days]")
+
+# note: suggest survival analysis as DV is time-to-event
+
+# carry out survival analysis
+library(survival)
+
+# first we create a survival object
+leuk_obj <- Surv(time = leuk_dat$Time, event = leuk_dat$Status)
+
+# perform Kaplan-Meier estimation
+leuk_km <- survfit(leuk_obj ~ 1)
+summary(leuk_km)
+
+# plot the Kaplan-Meier curve
+plot(leuk_km, xlab = "Time [days]", ylab = "Survival probability",
+     main = "Kaplan-Meier curve")
+
+# interpretation of KM plot: 
+# a rough estimate of the cumulative probability of surviving a given time over time.
+
+# fit a cox proportional hazards regression model
+m1_cox <- coxph(leuk_obj  ~ leuk_dat$WBC + leuk_dat$AG)
+
+# then test the proportional hazards assumption (ok in this case)
+cox.zph(m1_cox)
+
+# look the outputs:
+summary(m1_cox)
+
+# Interpreting the cox proportional hazards model output:
+# coef: are the Beta-coefficients of the model.
+# se(coef): the standard errors of the coefficeints.
+# z: is the z-score (n standard errors Beta is away from zero).
+# Pr.. : probabvility of Beta estimate being zero. 
+# exp(coef): these are the hazard ratios of the model parameters.
+# exp(-coef): the inverse hazard ratios.
+
+library(survminer)
+ggforest(m1_cox, leuk_dat)
+
+# Hazard ratios: the relative chance of an event. E.g., HR = 3, it is three times
+# as likely that the event occurs given the treatment parameter (in this case AG).
+
+```
+
+## EXERCISE 2B: COUNT DATA & POISSON REGRESSION
+Import the data-file, LungCancer_dat.csv Download LungCancer_dat.csv. This is data on the number of lung cancer metastases across patients. 
+The data-file contains three columns: MetCount: numbers of metastases (count); Gene: presence of a genetic biomarker; Biomarker: levels of an antigen.
+
+Propose a modelling method and develop a simple model.
+Interpret and present the model coefficients. 
+
+```{r}
+
+## Importing the data
+lc_dat <- read.csv("LungCancer_dat.csv")
+summary(lc_dat)
+pairs(lc_dat)
+hist(lc_dat$MetCount)
+
+# note: the DV is count, and has a typical exponential distribution.
+# Hence, Poisson regression is suitable.
+
+# fit a Poisson GLM 
+m1_2b <- glm(MetCount ~ Gene + Biomarker, family = poisson(link = log), data = lc_dat)
+
+# DHARMa can be used to produce diagnostic plots of most GLMs
+# The DHARMa vignette:
+# https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
+library(DHARMa)
+
+sim_res <- simulateResiduals(m1_2b)
+plot(sim_res)
+
+# plot the distribution of the residuals: these look ok
+library(sm)
+m1_res <- residuals(m1_2b, type = "deviance")
+sm::sm.density(m1_res, model = "normal")
+
+# Let's look at the summary output for the model:
+summary(m1_2b)
+
+# Interpreting the model output:
+# Poisson regression uses a log-link. So that:
+# log(MetCount ~ B0 + B1*Gene + B2*Biomarker)
+# comment: deviance of model is significantly better compared to the null model.
+# And, Deviance is smaller than the degrees of freedom suggestion that overdispersion
+# is not an issue. We now look at the estimates of the coefficents.
+# We should interpret coefficients following exponential transformation. So, in this case:
+
+# Intercept: -2.73, this is the Log(MetCount) when the remaining IVs are Zero.
+# Or the count, exp(-2.73)=0.07, or close to zero.
+
+# Biomarker Beta = 0.75, or exp(0.75)=2.12. 
+# This is a multiplicative factor on the normal scale.
+# Which means that Metastasis Count increases by 112% per increase of one in Biomarker.
+
+# Gene Beta = 0.50, or exp(0.50)=1.65.
+# So, with the same logic, Metastasis Count will increase by 65% due to gene expression.
+
+# Incidence Rate Ratio:
+# This can be calculated as exp(Beta) and represents the Ration in count due to one
+# unit difference in the independent variable. 
+
+## Plotting data:
+#  could be useful both on log and normal scale to better understand the impact of 
+#  a given variable.
+Gene_spec <- 1
+Gene <- rep(Gene_spec,100)
+Biomarker <- seq(from = 2.5, to = 7.5, , length.out = 100)
+
+data_new <- data.frame(Gene, Biomarker)
+
+pois_pred <- predict(m1_2b, data_new)
+
+obs_dat1 <- filter(lc_dat, Gene == Gene_spec)
+
+plot(obs_dat1$Biomarker, obs_dat1$MetCount, xlab = "Biomarker", ylab ="MetCount")
+lines(data_new$Biomarker, exp(pois_pred))
+
+plot(obs_dat1$Biomarker, log(obs_dat1$MetCount), xlab = "Biomarker", ylab ="Log(MetCount)")
+lines(data_new$Biomarker, pois_pred)
+
+# model param 95% confidence intervals:
+m12b_ci <- confint(m1_2b)
+exp(m12b_ci)
+
+```
+
+## EXERCISE 2C: BINARY OUTCOMES & LOGISTIC REGRESSION
+Import the data-file, TitanicSurvival_dat.csv Download TitanicSurvival_dat.csv. This is data of the recorded survivals and deaths on the Titanic.
+The data-file contains four columns, Survived: 1: yes, 0: no; Sex: female or male; Age: age in years; Class: the passenger class (1st, 2nd and 3rd class).
+
+Propose a modelling method and develop a simple model. 
+Interpret and present the model coefficients.
+
+```{r}
+
+# importing the data
+titanic_dat <- read.csv("TitanicSurvival_dat.csv")
+
+summary(titanic_dat)
+hist(titanic_dat$Survived, xlab = "Survived (=1, else =0)")
+
+# note: the DV is of a binary outcome, hence suggesting binomial logistic regression
+
+# We perform logistic regression on Survival
+m1_2c <- glm(Survived ~ Sex + Age + Class, family = "binomial", data = titanic_dat)
+summary(m1_2c)
+
+library(DHARMa)
+sim_res <- simulateResiduals(m1_2c)
+plot(sim_res) # ok
+
+### Interpreting the output:
+## Overview:
+# The coefficients are the log(odds). Meaning that the exp(coef.) is the odds ratio of survival
+# in this case. So, for every unit increase in an IV (holding other constant)
+# the log(odds) will increase/reduce multiplicativelty by the log(odds).
+
+# All coefficients are negative, in this case meaning that 
+# male, Age and lower passenger classes (2 and 3) are associated with lower odds of survival.
+
+# Sex, male: -2.50
+# For categorical variables we can look at the exponents of hte coefficient to get
+# the odds. In this case, exp(-2.50) = 0.08
+# Meaning, males had 0.08 times the survival odds of females.
+
+# Class, 2nd: -1.28
+# Again, exp(-1.28)=0.27. 2nd class had 0.27 times the survival odds of 
+# first class passengers.
+
+# Class, 3rd: -2.30 -> exp(-2.3)=0.10
+# 3rd class passangers had 0.10 times the survival odds as first class passengers.
+
+# Age: -0.03, exp(-0.03)=0.97
+# A difference in age of 1 corresponds to a negative difference of -0.03 in the logit
+# probability of survival.
+
+## Some alternative interpretations:
+# Interpretation 1:
+# We can evaluate the model at two Ages of interest and look at the difference in
+# probability. For example a Child of 10 and an adult of 40 years of age.
+
+delta_prob <- (1/(1+exp(3.522 - 0.034*10))) - (1/(1+exp(3.522 - 0.034*40)))
+# The difference in probability is 0.06, or 6% (when keeping all else at zero)
+
+# Interpretation 2:
+# Dividing Beta by 4 gives us an upperbound of the difference in probability.
+# In this case we get: -0.034/4 = -0.0085. A difference in age by one year corresponds
+# to no more than a 0.85% difference in probability in survival.
+
+# Interpretation 3:
+# Odds ratio. So, exp(-0.034)=0.97
+# So, a difference in Age of one, corresponds to a multiplicative change in the odds
+# by 0.97. For example changing the odds from 1 to 1*0.97=0.97.
+
+# Alternative 4: predicting and plotting the probability curves
+# For example, if we want to simulate probability of survival for a given group
+
+Sex_spec <- "male"
+Class_spec <- "3rd"
+
+Sex <- c(rep(Sex_spec, 100))
+Class <- c(rep(Class_spec, 100))
+Age <- seq(from = 1, to = 80, length.out = 100)
+
+data_pred <- data.frame(Sex, Age, Class)
+
+# Predict
+pred <- predict(m1_2c, data_pred, type = "link", se.fit = TRUE)
+
+# Convert to probabilities
+data_pred$fit <- plogis(pred$fit)
+
+# obs data plot
+library(dplyr)
+titanic_dat2 <- filter(titanic_dat, Sex == Sex_spec & Class == Class_spec)
+
+# plot
+plot(titanic_dat2$Age, titanic_dat2$Survived, xlab = "Age [Yrs]", ylab = "Prob. Survival", title = "Sex: male, Class: 2nd")
+lines(data_pred$Age, data_pred$fit, col = "red", lwd = 2)
+
+# Odds ratios
+m12c_or <- exp(coef(m1_2c))
+# Confidence intervals
+exp(confint(m1_2c))
+
+# ROC curve (We will talk more about this in Lecture 5B)
+# ability of model to discriminate between outcomes
+# Sensitivity: true positive / (true positives + false negatives) -> correctly identifying that someone Survived. 
+# Specificity: true negatives / (true negatives + false positives) -> correctly identifying the deceased. 
+# Used to determine prediction threshold, e.g.:
+
+library(pROC)
+m1_pred <- predict(m1_2c, type = "response")
+titanic_dat3 <- na.omit(titanic_dat)
+m1_roc <- roc(titanic_dat3$Survived, m1_pred)
+plot(m1_roc)
+auc(m1_roc)
+
+# assessment
+coords(m1_roc, x = 0.5, input = "threshold", ret = c("sensitivity", "specificity"))
+# sensitivity: 0.70, specificity: 0.84
+
+# prediction, e.g.: Balance between sens. and spec.
+coords(m1_roc, "best", ret = c("threshold", "sensitivity", "specificity"))
+
+# threshold: 0.37, sens: 0.79, spec: 0.76
+
+```
+
+## EXERCISE 2D: ORDINAL OUTCOMES & ORDINAL REGRESSION
+The dataset in mood_dat.csv (Mood_dat.csv Download Mood_dat.csv) contains the measure of mood in three levels (DV: 1 = anxious, 2 = indifferent, 3 = relaxed) following a pain stress test (X1 = 1, or no pain stress test, X1 = 0), and as a function of Age [years].
+Import the data-file, TitanicSurvival_dat.csv. This is data of the recorded survivals and deaths on the Titanic.
+
+Propose a modelling method and develop a simple model. 
+Interpret and present the model coefficients.
+
+```{r}
+
+## Import the mood data
+mood_dat <- read.csv("Mood_dat.csv")
+
+summary(mood_dat)
+pairs(mood_dat)
+
+# note: the DV is of an ordinal categorical scale. 
+
+# Carry out ordinal logistic regression using polr() in MASS
+library(MASS)
+
+mood_dat$DV <- as.factor(mood_dat$DV)
+
+m1_2d <- polr(DV ~ Age + X1, mood_dat)
+summary(m1_2d)
+
+# As for logistic regression, we can work with Odds ratios by exponentiation of the
+# coefficients.
+# We assume that the effect is constant for the three categories. This is the 
+# proportional odds assumption.
+
+# So, in this case we have the effect of Age:
+# Proportional odds exp(-0.068)=0.93. So the multiplicative effect of increase
+# in age by one year is 0.93. Mood reduces with age.
+
+# X1: pain stress test
+# exp(-1.588)=0.20. The multiplicative effect of doing the pain stress test
+# is 0.20. Or, individuals who performed the pain stress test had 0.20 times the
+# odds of individuals who did not perform the pain stress test.
+# the intercepts are the logg odds of the boundaries on a continuous scale.
+# a log odds less than one is a probability lower than 0.5.
+
+
+### Plotting probabilities across variables
+Age <- seq(from = 18, to = 80, length.out = 100)
+X1 <- rep(1, 100)
+
+data_new <- data.frame(Age, X1)
+
+m1_predprobs <- predict(m1_2d, data_new, type = "probs")
+
+# plot model probabilities for the three levels
+ggplot() +
+  geom_line(aes(data_new$Age,m1_predprobs[,1],colour = "anxious")) +
+  geom_line(aes(data_new$Age,m1_predprobs[,2],colour = "indiff")) +
+  geom_line(aes(data_new$Age,m1_predprobs[,3],colour = "relaxed")) +
+  xlab("Age [years]") +
+  ylab("Response")
+
+
+```
+
+
+

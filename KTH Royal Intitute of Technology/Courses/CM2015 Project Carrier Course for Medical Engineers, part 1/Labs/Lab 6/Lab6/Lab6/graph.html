@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Today's heart rate</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="jqFhir.js"></script>
+</head>
+<body>
+
+    
+
+    <div id="plot_area" style="width:1000px;height:350px;"></div>
+    <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
+    <script type="module">
+      let hrData=[];
+      let timeArray=[];
+      let lastHr = 0;
+      let countQuery;
+      let dateQuery;
+      let lastHR;
+      let mode = 'initial'
+      var date = new Date()
+      var client = jqFhir({ baseUrl: 'https://hapim.app.cloud.cbh.kth.se/fhir' });
+      const plotly_elem = document.getElementById('plot_area');
+      const plotly_layout = {
+        margin: {t: 50},
+        title: 'Heart Rate',
+        grid: { rows: 1, columns: 2, pattern: "independent" },
+      };
+
+      // Initialize plotly
+
+      async function initializePlot(){
+      
+        await makePlot();
+
+        setInterval(makePlot, 10000);
+      }
+      
+      async function makePlot(){
+        await getMyHRData();
+        var plotly_data = [
+          {x: timeArray, y: hrData, type: 'scatter', name: 'heartrate', domain:{ row :0, column:0}},
+          {
+            type: "indicator",
+            value: hrData[hrData.length-1],
+            delta: { reference: lastHR},
+            mode: "gauge+number+delta",
+            gauge: { axis: { visible: false, range: [40 , 220] } },
+            domain: { row: 0, column: 1 }
+          }
+        ];
+        console.log(plotly_data)
+
+        Plotly.newPlot(plotly_elem, plotly_data, plotly_layout);
+        lastHR = hrData[hrData.length-1];
+      }
+
+      
+      async function getMyHRData() {
+        // TODO: Implement!
+        return new Promise((resolve)=>{
+          if(timeArray.length>0){
+            dateQuery = `gt${timeArray[timeArray.length-1].toISOString()}`;
+            countQuery = 30;
+          }else{
+            date = new Date(Date.now());
+            date.setHours(0,0,0,0);
+            dateQuery = `ge${date.toISOString()}`;
+            countQuery = 1500
+          }
+            client.search({ 
+            type: 'Observation',
+            query: {
+              code: '8867-4',
+              _sort: 'date',
+              _count: countQuery,
+              date: dateQuery,
+              patient: {
+                $type: 'Patient',
+                _id: 241
+              }
+            }}).then(res => {
+              if (res.entry){
+                res.entry.forEach(obs => {
+                var r = obs.resource;
+                if(timeArray.length > 0 && new Date(r.effectiveInstant) > timeArray[timeArray.length-1]){
+                  timeArray.push(new Date(r.effectiveInstant));
+                  hrData.push(r.valueQuantity.value);
+                }else {
+                  timeArray.push(new Date(r.effectiveInstant));
+                  hrData.push(r.valueQuantity.value);
+                }              
+                })
+                resolve();
+              }else{
+                resolve(false);
+              }      
+          });
+      })
+    }
+
+    initializePlot();
+    
+      
+  
+
+  </script>
+</body>
+</html>
