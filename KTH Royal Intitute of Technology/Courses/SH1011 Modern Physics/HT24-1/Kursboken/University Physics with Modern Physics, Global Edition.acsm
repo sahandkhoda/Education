@@ -1,0 +1,29 @@
+<fulfillmentToken fulfillmentType="buy" auth="user" xmlns="http://ns.adobe.com/adept">
+  <distributor>urn:uuid:e49a98b0-ff90-4eaf-b8c5-71238284dfdd</distributor>
+  <operatorURL>http://drm.ebookshipping.com:8080/fulfillment</operatorURL>
+  <transaction>GBL:1899331</transaction>
+  <expiration>2021-03-22T14:50:09+00:00</expiration>
+  <resourceItemInfo>
+    <resource>urn:uuid:b485972a-f6a5-424c-bc64-d202a115e309</resource>
+    <resourceItem>1</resourceItem>
+    <metadata>
+      <dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">University Physics with Modern Physics, Global Edition</dc:title>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Young, Hugh D.</dc:creator>
+      <dc:publisher xmlns:dc="http://purl.org/dc/elements/1.1/">Pearson Education Limited</dc:publisher>
+      <dc:identifier xmlns:dc="http://purl.org/dc/elements/1.1/">9781292100326</dc:identifier>
+      <dc:format xmlns:dc="http://purl.org/dc/elements/1.1/">application/pdf</dc:format>
+      <dc:language xmlns:dc="http://purl.org/dc/elements/1.1/">EN</dc:language>
+    </metadata>
+    <licenseToken>
+      <resource>urn:uuid:b485972a-f6a5-424c-bc64-d202a115e309</resource>
+      <permissions>
+        <display/>
+        <print>
+          <count initial="402"/>
+        </print>
+        <play/>
+      </permissions>
+    </licenseToken>
+  </resourceItemInfo>
+  <hmac>rygpYD8+gBA4e2e45jbjnJyy488=</hmac>
+</fulfillmentToken>
