@@ -1,0 +1,86 @@
+# Install packages
+install.packages("pwr")
+
+# Import packages
+library(pwrss)
+library(pwr)
+library(car)
+
+data <- read.csv("data/Data_T1.csv")
+
+# Examine data structure
+head(data)
+summary(data)
+
+# Grouping of NFL
+contr <-  data$NFL[data$GROUP == 0]
+treat <- data$NFL[data$GROUP == 1]
+
+# Get geometric means
+geometric_mean_contr <- exp(mean(log(contr)))
+geometric_mean_treat <- exp(mean(log(treat)))
+
+# Standard deviations
+sd_contr <- sd(contr)
+sd_treat <- sd(treat)
+
+# We want to detect a difference of 30% reduction in the geometric mean of NfL.
+geometric_mean_treat <- geometric_mean_treat * 0.7
+
+# Calculate Cohen's D effect size
+sd_pooled <- sqrt( (sd_treat^2 + sd_contr^2) / 2)
+es_d <- (geometric_mean_treat - geometric_mean_contr) / sd_pooled
+
+# calculate power over sample size
+p.t.two <- pwr.t.test(d = es_d, power = 0.80, type = "two.sample", 
+                      alternative = "two.sided")
+plot(p.t.two, xlab = "sample size per group")
+
+# library(devtools)
+# install_github("adamdarwichkth/CM2018rpackage")
+# library(CM2018rpackage)
+
+# my_dataframe <- ad_trial_data(n_per_arm = 138)
+my_dataframe <- read.csv("data/my_dataframe.csv")
+
+head(my_dataframe)
+summary(my_dataframe)
+
+contr_after <- my_dataframe$NFL[my_dataframe$GROUP == 0]
+treat_after <- my_dataframe$NFL[my_dataframe$GROUP == 1]
+
+# Calculate reduction
+log_before <- log(treat)
+log_after <-  log(treat_after)
+
+geometric_mean_dif <- exp(mean(log_after) - mean(log_before))
+percent_change <- (geometric_mean_dif - 1) * 100
+
+# Visualise data
+hist(treat, col = "rosybrown", main = "Before 3 months", xlab = "NfL levels", freq = FALSE)
+hist(treat_after, col = "darkseagreen", main = "After 3 months", xlab = "NfL levels", freq = FALSE)
+
+boxplot(treat, treat_after, names = c("Before", "After"), col = c("rosybrown", "darkseagreen"), main = "NfL - before and after")
+
+qqPlot(treat, main = "Before treatment", xlab = "Normal quantiles", ylab = "NfL levels")
+qqPlot(treat_after, main = "After treatment", xlab = "Normal quantiles", ylab = "NfL levels")
+
+# Test for normality
+shapiro.test(treat)
+shapiro.test(treat_after)
+
+# Wilcoxon-Mann-Whitney test on raw data
+wilcox.test(treat, treat_after)
+
+# Test log-transformed groups for normality
+shapiro.test(log_before)
+shapiro.test(log_after)
+
+# T-test for log-transformed groups
+var.test(log_before, log_after)
+t.test(log_before, log_after, var.equal = FALSE)
+
+
+
+
+
